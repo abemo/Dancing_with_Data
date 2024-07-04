@@ -4,7 +4,7 @@ import redis
 import elasticsearch
 
 class Crawler():
-    def __init__(self, start_url, end_url):
+    def __init__(self, start_url, end_url, es_hosts=['https://localhost:9200']):
         self.visited = set()
         # Use Redis to store the URLs to visit
         self.redis_client = redis.Redis()
@@ -13,7 +13,7 @@ class Crawler():
         self.end_url = end_url
         self.browser = ms.StatefulBrowser()
         # Store the HTML of visited pages in Elasticsearch
-        # self.es = elasticsearch.Elasticsearch()
+        self.es = elasticsearch.Elasticsearch(hosts=es_hosts)
         
     def crawl(self, verbose=False) -> None:
         # While there are still links to visit, crawl the pages until the end URL is found
@@ -22,7 +22,12 @@ class Crawler():
             current_url = self.redis_client.lpop(self.queue_key).decode('utf-8')
             self.visited.add(current_url)
             self.browser.open(current_url)
-            if verbose: print(f"{current_url}")  
+            if verbose: print(f"{current_url}")
+            
+            # save the page to Elasticsearch
+            page_html = self.browser.get_current_page().prettify()
+            self.save_to_elasticsearch(current_url, page_html)
+              
             if current_url == self.end_url:
                 if verbose: print(f"Reached the end URL: {self.end_url}")
                 return  # Exit after finding the end URL
@@ -45,6 +50,12 @@ class Crawler():
                 return False
             case _:
                 return True
+
+    def save_to_elasticsearch(self, url, html) -> None:
+        try:
+            self.es.index(index='wikipedia_pages', body={'url': url, 'html': html})
+        except elasticsearch.ConnectionError as e:
+            print(f"ConnectionError while saving to Elasticsearch: {e}")
 
 start_url = "https://en.wikipedia.org/wiki/Redis"
 end_url = "https://en.wikipedia.org/wiki/Jesus"
