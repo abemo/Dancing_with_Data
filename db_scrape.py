@@ -6,7 +6,7 @@ import config
 
 
 class Crawler():
-    def __init__(self, start_url, end_url, es_hosts=['https://localhost:9200']):
+    def __init__(self, start_url, end_url):
         self.visited = set()
         # Use Redis to store the URLs to visit
         self.redis_client = redis.Redis()
