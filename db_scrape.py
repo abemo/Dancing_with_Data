@@ -53,6 +53,12 @@ class Crawler():
                 return False 
             case str() if link.startswith("/wiki/File:"):
                 return False
+            case str() if link.startswith("/wiki/User:"):
+                return False
+            case str() if link.startswith("/wiki/Talk:"):
+                return False
+            case str() if link.startswith("/wiki/Category:"):
+                return False
             case _:
                 return True
 
