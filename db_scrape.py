@@ -1,7 +1,9 @@
 import mechanicalsoup as ms
 from urllib.parse import urljoin
 import redis
-import elasticsearch
+from elasticsearch import Elasticsearch
+import config
+
 
 class Crawler():
     def __init__(self, start_url, end_url, es_hosts=['https://localhost:9200']):
@@ -13,7 +15,10 @@ class Crawler():
         self.end_url = end_url
         self.browser = ms.StatefulBrowser()
         # Store the HTML of visited pages in Elasticsearch
-        self.es = elasticsearch.Elasticsearch(hosts=es_hosts)
+        elastic_key = config.key
+        self.es = Elasticsearch("https://22246d944b014887a28dfb53f4f8ed0c.us-central1.gcp.cloud.es.io:443",
+                                    api_key=elastic_key)
+
         
     def crawl(self, verbose=False) -> None:
         # While there are still links to visit, crawl the pages until the end URL is found
@@ -53,8 +58,8 @@ class Crawler():
 
     def save_to_elasticsearch(self, url, html) -> None:
         try:
-            self.es.index(index='wikipedia_pages', body={'url': url, 'html': html})
-        except elasticsearch.ConnectionError as e:
+            self.es.index(index='scrape', body={'url': url, 'html': html})
+        except ConnectionError as e:
             print(f"ConnectionError while saving to Elasticsearch: {e}")
 
 start_url = "https://en.wikipedia.org/wiki/Redis"
