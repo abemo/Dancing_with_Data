@@ -3,12 +3,14 @@ from urllib.parse import urljoin
 import redis
 from elasticsearch import Elasticsearch
 import os
+import sys
 
 class Crawler():
     def __init__(self, start_url, end_url):
         self.visited = set()
         # Use Redis to store the URLs to visit
         self.redis_client = redis.Redis()
+        self.redis_client.flushall()
         self.queue_key = 'to_visit'
         self.redis_client.rpush(self.queue_key, start_url)
         self.end_url = end_url
@@ -19,7 +21,6 @@ class Crawler():
         client = Elasticsearch(
             "http://localhost:9200",
             basic_auth=(username, password))
-        print(client.info())
         self.es = client
 
         
@@ -38,7 +39,7 @@ class Crawler():
               
             if current_url == self.end_url:
                 if verbose: print(f"Reached the end URL: {self.end_url}")
-                return  # Exit after finding the end URL
+                sys.exit()  # Exit after finding the end URL
             for link in self.browser.links():
                 href = link.get('href')
                 if href and self.is_valid_link(href):
