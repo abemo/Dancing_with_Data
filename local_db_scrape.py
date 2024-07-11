@@ -22,6 +22,7 @@ class Crawler():
             "http://localhost:9200",
             basic_auth=(username, password))
         self.es = client
+        self.number_of_pages_visited = 0
 
         
     def crawl(self, verbose=False) -> None:
@@ -30,16 +31,17 @@ class Crawler():
             # Pop from the front of the list
             current_url = self.redis_client.lpop(self.queue_key).decode('utf-8')
             self.visited.add(current_url)
+            self.number_of_pages_visited += 1
             self.browser.open(current_url)
-            if verbose: print(f"{current_url}")
+            if verbose: print(f"{self.number_of_pages_visited}: {current_url}")
             
             # save the page to Elasticsearch
             page_html = self.browser.get_current_page().prettify()
             self.save_to_elasticsearch(current_url, page_html)
               
             if current_url == self.end_url:
-                if verbose: print(f"Reached the end URL: {self.end_url}")
-                sys.exit()  # Exit after finding the end URL
+                if verbose: print(f"{self.number_of_pages_visited}: Reached the end URL: {self.end_url}")
+                return self.number_of_pages_visited  # Exit after finding the end URL
             for link in self.browser.links():
                 href = link.get('href')
                 if href and self.is_valid_link(href):
