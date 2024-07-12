@@ -102,4 +102,7 @@ class Scraper():
         
 
 scrapey = Scraper()
-scrapey.scrape_sub_reddit("wallstreetbets")
+# scrapey.scrape_sub_reddit("wallstreetbets")
+for url in scrapey.sub_reddits:
+    print(scrapey.build_sub_reddit_url(url))
+    
