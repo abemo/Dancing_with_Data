@@ -1,6 +1,5 @@
 import praw
 from elasticsearch import Elasticsearch
-import multiprocessing
 import config
 
 class Crawler():
@@ -66,14 +65,6 @@ class Scraper():
         """
         Scrape all the subreddits in parallel
         """
-        # processes = []
-        # for sub_reddit in self.sub_reddits:
-        #     p = multiprocessing.Process(target=self.scrape_sub_reddit, args=(sub_reddit, self.verbose))
-        #     processes.append(p)
-        #     p.start()
-        
-        # for p in processes:
-        #     p.join()
         for sub_reddit in self.sub_reddits:
             print("="*20)
             print(f"Scraping subreddit: {sub_reddit}")
@@ -81,9 +72,4 @@ class Scraper():
             self.scrape_sub_reddit(sub_reddit)
 
 scrapey = Scraper(verbose=True)
-# scrapey.scrape_sub_reddit("wallstreetbets")
 scrapey.scrape_all()
-# search the elasticsearch index for all the titles of the posts
-# search = Elasticsearch.search(index="scrape", body={"query": {"match_all": {}}})
-# print the titles of the posts
-# print(search['hits']['hits'])
