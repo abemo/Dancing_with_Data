@@ -18,8 +18,7 @@ class Crawler():
         hot_posts = subreddit.hot(limit=self.number_of_posts)
 
         for post in hot_posts:
-            if not post.stickied:  # Skip the stickied post
-                # if verbose: print(f"Processing post: {post.title}")
+            if not post.stickied: 
                 post_data = {
                     'url': post.url,
                     'title': post.title,
@@ -30,7 +29,6 @@ class Crawler():
                     'comments': post.num_comments,
                     'image': post.url if post.url.endswith(('.jpg', '.png', '.gif')) else ''
                 }
-                # Save the post to Elasticsearch
                 self.save_to_elasticsearch(post_data)
                 if verbose: print(f"Saved post: {post.title}")
 
@@ -49,7 +47,6 @@ class Scraper():
         self.number_of_posts = number_of_posts
         self.verbose = verbose
         
-        # Store the HTML of visited pages in Elasticsearch
         username = 'elastic'
         password = config.ELASTIC_PASSWORD
         client = Elasticsearch(
