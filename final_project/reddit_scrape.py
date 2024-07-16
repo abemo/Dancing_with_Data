@@ -20,35 +20,41 @@ class Crawler():
 
         for post in hot_posts:
             if not post.stickied:
-                post_data = {
-                    'url': post.url,
-                    'title': post.title,
-                    'author': str(post.author),
-                    'post_date': post.created_utc,
-                    'upvotes': post.score,
-                    'body': post.selftext,
-                    'comments': post.num_comments,
-                    'image': post.url if post.url.endswith(('.jpg', '.png', '.gif')) else ''
-                }
-                self.save_to_sqlite(post_data)
+                post_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(post.created_utc))
+                today_date = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+
+                # Save the post data
+                self.save_to_sqlite(
+                    post.url,
+                    post.title,
+                    str(post.author),
+                    post.created_utc,
+                    post.score,
+                    post.selftext,
+                    post.num_comments,
+                    post.url if post.url.endswith(('.jpg', '.png', '.gif')) else ''
+                )
+
                 if verbose:
                     print(f"Saved post: {post.title}")
 
-    def save_to_sqlite(self, post_data) -> None:
+
+    def save_to_sqlite(self, url, title, author, post_date, upvotes, body, comments, image) -> None:
         cursor = self.db_connection.cursor()
         try:
             cursor.execute("""
-                INSERT INTO posts (url, title, author, post_date, upvotes, body, comments, image)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO posts (url, title, author, post_date, upvotes, body, comments, image, scraped_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                post_data['url'],
-                post_data['title'],
-                post_data['author'],
-                post_data['post_date'],
-                post_data['upvotes'],
-                post_data['body'],
-                post_data['comments'],
-                post_data['image']
+                url,
+                title,
+                author,
+                post_date,
+                upvotes,
+                body,
+                comments,
+                image,
+                time.strftime("%Y-%m-%d", time.localtime(time.time()))  # Store the current timestamp as the scraped_date
             ))
             self.db_connection.commit()
         except sqlite3.Error as e:
@@ -59,8 +65,8 @@ class Crawler():
 
 class Scraper():
     def __init__(self, number_of_posts=100, verbose=False):
-        self.sub_reddits = ["wallstreetbets", "investing", "stocks", "trading", 
-                            "forex", "algotrading", "investor", "etoro", 
+        self.sub_reddits = ["wallstreetbets", "investing", "stocks", "trading",
+                            "forex", "algotrading", "investor", "etoro",
                             "asktrading", "finance", "forextrading", "investoradvice"]
         self.number_of_posts = number_of_posts
         self.verbose = verbose
@@ -73,7 +79,6 @@ class Scraper():
         try:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS posts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     url TEXT,
                     title TEXT,
                     author TEXT,
@@ -81,7 +86,9 @@ class Scraper():
                     upvotes INTEGER,
                     body TEXT,
                     comments INTEGER,
-                    image TEXT
+                    image TEXT,
+                    scraped_date REAL,
+                    primary key (url, scraped_date)
                 )
             """)
             self.db_connection.commit()
@@ -108,8 +115,6 @@ class Scraper():
         if self.db_connection:
             self.db_connection.close()
 
+
 scrapey = Scraper(verbose=True)
 scrapey.scrape_all()
-
-
-
