@@ -1,6 +1,7 @@
 import praw
 from elasticsearch import Elasticsearch
 import config
+import time
 
 class Crawler():
     def __init__(self, sub_reddit, number_of_posts, es_client):
@@ -62,6 +63,8 @@ class Scraper():
         """
         Scrape all the subreddits in parallel
         """
+        # print the day and time
+        if self.verbose: print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
         for sub_reddit in self.sub_reddits:
             print("="*20)
             print(f"Scraping subreddit: {sub_reddit}")
