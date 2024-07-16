@@ -2,7 +2,7 @@ import mechanicalsoup as ms
 from urllib.parse import urljoin
 import redis
 from elasticsearch import Elasticsearch
-import config
+import final_project.utils.config as config
 
 
 class Crawler():
