@@ -20,7 +20,7 @@ class Crawler():
 
         for post in hot_posts:
             if not post.stickied:  # Skip the stickied post
-                if verbose: print(f"Processing post: {post.title}")
+                # if verbose: print(f"Processing post: {post.title}")
                 post_data = {
                     'url': post.url,
                     'title': post.title,
@@ -45,9 +45,8 @@ class Crawler():
 class Scraper():
     def __init__(self, number_of_posts=100, verbose=False):
         self.sub_reddits = ["wallstreetbets", "investing", "stocks", "trading", 
-                            "forex", "tradingreligion", "technicalraptor", "investor", 
-                             "etoro", "asktrading", "BullTrader", "finance", "forextrading", 
-                             "wealthify", "investoradvice",]
+                            "forex", "algotrading", "investor", "etoro", 
+                             "asktrading", "finance", "forextrading", "investoradvice",]
         self.number_of_posts = number_of_posts
         self.verbose = verbose
         
@@ -67,18 +66,23 @@ class Scraper():
         """
         Scrape all the subreddits in parallel
         """
-        processes = []
-        for sub_reddit in self.sub_reddits:
-            p = multiprocessing.Process(target=self.scrape_sub_reddit, args=(sub_reddit, self.verbose))
-            processes.append(p)
-            p.start()
+        # processes = []
+        # for sub_reddit in self.sub_reddits:
+        #     p = multiprocessing.Process(target=self.scrape_sub_reddit, args=(sub_reddit, self.verbose))
+        #     processes.append(p)
+        #     p.start()
         
-        for p in processes:
-            p.join()
+        # for p in processes:
+        #     p.join()
+        for sub_reddit in self.sub_reddits:
+            print("="*20)
+            print(f"Scraping subreddit: {sub_reddit}")
+            print("="*20)
+            self.scrape_sub_reddit(sub_reddit)
 
 scrapey = Scraper(verbose=True)
-scrapey.scrape_sub_reddit("wallstreetbets")
-# scrapey.scrape_all()
+# scrapey.scrape_sub_reddit("wallstreetbets")
+scrapey.scrape_all()
 # search the elasticsearch index for all the titles of the posts
 # search = Elasticsearch.search(index="scrape", body={"query": {"match_all": {}}})
 # print the titles of the posts
