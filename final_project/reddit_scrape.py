@@ -27,6 +27,7 @@ class Crawler():
                 self.save_to_sqlite(
                     post.url,
                     post.title,
+                    self.sub_reddit,
                     str(post.author),
                     post.created_utc,
                     post.score,
@@ -39,15 +40,16 @@ class Crawler():
                     print(f"Saved post: {post.title}")
 
 
-    def save_to_sqlite(self, url, title, author, post_date, upvotes, body, comments, image) -> None:
+    def save_to_sqlite(self, url, title, sub_reddit, author, post_date, upvotes, body, comments, image) -> None:
         cursor = self.db_connection.cursor()
         try:
             cursor.execute("""
-                INSERT OR IGNORE INTO posts (url, title, author, post_date, upvotes, body, comments, image, scraped_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO posts (url, title, sub_reddit, author, post_date, upvotes, body, comments, image, scraped_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 url,
                 title,
+                sub_reddit,
                 author,
                 post_date,
                 upvotes,
@@ -67,7 +69,7 @@ class Scraper():
     def __init__(self, number_of_posts=100, verbose=False):
         self.sub_reddits = ["wallstreetbets", "investing", "stocks", "trading",
                             "forex", "algotrading", "investor", "etoro",
-                            "asktrading", "finance", "forextrading", "investoradvice"]
+                            "asktrading", "finance", "forextrading"]
         self.number_of_posts = number_of_posts
         self.verbose = verbose
 
@@ -81,6 +83,7 @@ class Scraper():
                 CREATE TABLE IF NOT EXISTS posts (
                     url TEXT,
                     title TEXT,
+                    sub_reddit TEXT,
                     author TEXT,
                     post_date REAL,
                     upvotes INTEGER,
@@ -116,5 +119,5 @@ class Scraper():
             self.db_connection.close()
 
 
-scrapey = Scraper(verbose=True)
+scrapey = Scraper(verbose=False)
 scrapey.scrape_all()
