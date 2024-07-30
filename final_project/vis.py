@@ -36,7 +36,7 @@ def display_plots(date, mentions_df, posts_df):
     
     stock_sentiments = mentions_and_sentiment(date, mentions_df, posts_df)
     sub_sentiments = subreddit_sentiment(date, mentions_df, posts_df)
-    overal_sentiment = overall_sentiment(date, mentions_df, posts_df)
+    overall_sentiment = overall_sentiment(date, mentions_df, posts_df)
     
     fig, axs = plt.subplots(3, 1, figsize=(10, 15))
     # plot the number of posts per stock ticker mentioned as a bar graph, with color-coded sentiment
@@ -51,7 +51,7 @@ def display_plots(date, mentions_df, posts_df):
     axs[1].set_title('Overall Sentiment of Each Subreddit')
     
     # plot the number of positive, neutral, and negative sentiments of all posts as a pie chart
-    axs[2].pie(overal_sentiment['count'], labels=['Positive', 'Neutral', 'Negative'], autopct='%1.1f%%')
+    axs[2].pie(overall_sentiment['count'], labels=['Positive', 'Neutral', 'Negative'], autopct='%1.1f%%')
     axs[2].set_title('Overall Sentiment of All Posts')
     
     plt.tight_layout()

@@ -76,7 +76,7 @@ def main():
     unanalyzed_posts_df = posts_df[~posts_df['url'].isin(analyzed_urls)]
     
     # Limit to 100 posts per run
-    unanalyzed_posts_df = unanalyzed_posts_df.head(250)
+    unanalyzed_posts_df = unanalyzed_posts_df.head(100)
     
     if unanalyzed_posts_df.empty:
         print("No new posts to analyze.")
