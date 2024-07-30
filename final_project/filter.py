@@ -2,13 +2,14 @@ import sqlite3
 import json
 import re
 import pandas as pd
-from PIL import Image, UnidentifiedImageError
-import pytesseract
-from io import BytesIO
-import base64
-import binascii
-from multiprocessing import Pool, cpu_count
-from tqdm import tqdm
+from openai import OpenAI
+import os
+import utils.config as config
+import tqdm
+import re
+
+# Load your OpenAI API key from an environment variable or directly set it here
+client = OpenAI(api_key=config.OPENAI_API_KEY)
 
 # Load stock tickers from JSON
 with open('final_project/utils/company_tickers.json', 'r') as f:
@@ -17,112 +18,81 @@ with open('final_project/utils/company_tickers.json', 'r') as f:
 tickers = {v['ticker']: v['title'] for k, v in stock_tickers.items()}
 ticker_patterns = {ticker: re.compile(r'\b' + re.escape(ticker) + r'\b', re.IGNORECASE) for ticker in tickers}
 
-# Define contextual regex patterns
-contextual_patterns = {
-    ticker: re.compile(
-        rf'\b(?:stock|shares|equities|buy|sell|trade|investment|price|value|market|traded)\s*[\s.,]*{re.escape(ticker)}\b',
-        re.IGNORECASE
+# Function to call the OpenAI API to extract stock tickers and sentiment
+def extract_tickers_and_sentiment(text):
+    prompt = f"Here is a block of text scraped from Reddit. Return a list of python dictionaries format of any stock or company referenced, as well as a rating of how positive the post is about that stock or company. Only output the python list, nothing else.\n\n{text}"
+
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a sentiment analysis assistant, skilled in extracting stock tickers and sentiment from text."},
+            {"role": "user", "content": prompt}],
+        max_tokens=150,
+        temperature=0.5,
     )
-    for ticker in tickers
-}
+    content = completion.choices[0].message.content
+    
+    # use regex, to only select the [ ] and the content inside
+    match = re.search(r'\[.*?\]', content, re.DOTALL)
+    if match:
+        return match.group()
+    else:
+        print("No match found")
 
-# Function to extract text from images using OCR
-def extract_text_from_image(image_data, target_size=(800, 800)):
-    if not image_data:
-        print("No image data provided.")
-        return ""
-    
-    try:
-        # Fix incorrect padding
-        missing_padding = len(image_data) % 4
-        if missing_padding != 0:
-            image_data += '=' * (4 - missing_padding)
-        
-        # Decode base64 image data
-        decoded_data = base64.b64decode(image_data)
-        
-        # Try to open the image
-        try:
-            image = Image.open(BytesIO(decoded_data))
-        except Exception as e:
-            print(f"Image opening error: {e}")
-            return ""
-        
-        # Convert image to a consistent format (e.g., PNG) and resize
-        with BytesIO() as converted_image:
-            image = image.convert("RGB")  # Convert to RGB if not already
-            image = image.resize(target_size, Image.ANTIALIAS)  # Resize image
-            image.save(converted_image, format="PNG")
-            converted_image.seek(0)
-            image_data = converted_image.getvalue()
-        
-        # Extract text from the converted image
-        return pytesseract.image_to_string(BytesIO(image_data))
-    
-    except binascii.Error as e:
-        print(f"Base64 decoding error: {e}")
-    except UnidentifiedImageError as e:
-        print(f"Unidentified image error: {e}")
-    except Exception as e:
-        print(f"Unexpected error processing image: {e}")
-    
-    return ""
-
-# Function to find tickers with context
-def find_tickers(text, ticker_patterns, contextual_patterns):
-    found_tickers = set()
-    for ticker, pattern in ticker_patterns.items():
-        if pattern.search(text):
-            # Check if ticker is used in a contextual pattern
-            context_pattern = contextual_patterns.get(ticker)
-            if context_pattern and context_pattern.search(text):
-                found_tickers.add(ticker)
-    return list(found_tickers)
 
 def process_post(row):
-    combined_text = f"{row['title']} {row['body']} {row['comments']}"
+    combined_text = f"{row['title']} {row['body']}"
     
-    # Find tickers in text fields
-    mentioned_tickers = find_tickers(combined_text, ticker_patterns, contextual_patterns)
+    # Preprocess to check for stock tickers before making an API call
+    if not any(pattern.search(combined_text) for pattern in ticker_patterns.values()):
+        return (row['url'], json.dumps([]))  # Return empty list if no tickers are found
     
-    # Find tickers in image if it exists
-    image_text = ''
-    if row['image'] and row['image'].strip():
-        image_text = extract_text_from_image(row['image'])
-        mentioned_tickers.extend(find_tickers(image_text, ticker_patterns, contextual_patterns))
+    # Call the OpenAI API to extract stock tickers and sentiment
+    extracted_data = extract_tickers_and_sentiment(combined_text)
     
-    # Remove duplicates and join tickers into a string
-    mentioned_tickers = ', '.join(set(mentioned_tickers))
-    
-    return (row['url'], mentioned_tickers, image_text)
+    return (row['url'], extracted_data)
 
 def main():
     # Connect to the SQLite database
     conn = sqlite3.connect('final_project/scraped_data/reddit_posts.db')
     
+    # Create the stock_mentions table if it doesn't exist
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS stock_mentions (
+            url TEXT PRIMARY KEY,
+            extracted_data TEXT
+        )
+    ''')
+    conn.commit()
+    
     # Load the posts table into a DataFrame
     posts_df = pd.read_sql_query('SELECT url, title, body, comments, image FROM posts', conn)
     
-    # Initialize multiprocessing
-    pool = Pool(cpu_count())
+    # Load the stock_mentions table into a DataFrame
+    analyzed_df = pd.read_sql_query('SELECT url FROM stock_mentions', conn)
+    analyzed_urls = set(analyzed_df['url'])
     
-    # Process each post in parallel with a progress bar
+    # Filter out already analyzed posts
+    unanalyzed_posts_df = posts_df[~posts_df['url'].isin(analyzed_urls)]
+    
+    # Limit to 100 posts per run
+    unanalyzed_posts_df = unanalyzed_posts_df.head(40)
+    
+    if unanalyzed_posts_df.empty:
+        print("No new posts to analyze.")
+        return
+    
+    # Process each post sequentially
     results = []
-    for result in tqdm(pool.imap_unordered(process_post, posts_df.to_dict('records')), total=posts_df.shape[0], desc="Processing posts"):
+    for row in tqdm.tqdm(unanalyzed_posts_df.to_dict('records')):
+        result = process_post(row)
         results.append(result)
     
-    # Close the pool
-    pool.close()
-    pool.join()
-    
     # Create DataFrame from results
-    mentions_df = pd.DataFrame(results, columns=['url', 'mentioned_tickers', 'image_text'])
+    mentions_df = pd.DataFrame(results, columns=['url', 'extracted_data'])
     
-    # Filter out rows without any mentioned tickers
-    mentions_df = mentions_df[mentions_df['mentioned_tickers'] != '']
-    
-    # Save the mentions DataFrame to a new table in the SQLite database
-    mentions_df.to_sql('stock_mentions', conn, if_exists='replace', index=False)
+    # Save the mentions DataFrame to the stock_mentions table in the SQLite database
+    mentions_df.to_sql('stock_mentions', conn, if_exists='append', index=False)
     
     # Close the connection
     conn.close()
