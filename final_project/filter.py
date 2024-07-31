@@ -77,7 +77,7 @@ def main():
     unanalyzed_posts_df = posts_df[~posts_df[['url', 'scraped_date']].apply(tuple, axis=1).isin(analyzed_urls_dates)]
     
     # Limit to 100 posts per run
-    unanalyzed_posts_df = unanalyzed_posts_df.head(10)
+    unanalyzed_posts_df = unanalyzed_posts_df.head(100)
     
     if unanalyzed_posts_df.empty:
         print("No new posts to analyze.")
