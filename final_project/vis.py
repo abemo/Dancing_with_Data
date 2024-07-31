@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd
 import sqlite3
 import json
-import re
-import utils.config as config
 
 # given a date, return the number of posts per stock ticker mentioned with a sentiment score
 def mentions_and_sentiment(date, mentions_df, posts_df):
@@ -15,21 +13,42 @@ def subreddit_sentiment(date, mentions_df, posts_df):
     return
 
 # return the number of positive, neutral, and negative sentiments of all posts for a given date
-def overall_sentiment(date, mentions_df, posts_df):
+def overall_sentiment(date, mentions_df):
     """
-    go through the mentions_df, get the corresponding posts from the posts_df using the url and matching the date 
-    param to the scraped_date then get the sentiment from the extracted_data and count the number of positive, 
-    neutral, and negative sentiments
+    Go through the mentions_df, get the posts matching the date 
+    then get the sentiment from the extracted_data and 
+    count the number of positive, neutral, and negative sentiments
     """
-    # get the posts for the given date
-    posts = posts_df[posts_df['scraped_date'] == date]
-    # merge the mentions_df and posts_df on the url column ONLY the date matches
-    merged_df = mentions_df.merge(posts, on='url')
-    # get the sentiment from the extracted_data column
-    merged_df['sentiment'] = merged_df['extracted_data'].apply(lambda x: json.loads(x)['sentiment'])
-    # count the number of positive, neutral, and negative sentiments
-    sentiment_counts = merged_df['sentiment'].apply(pd.Series).stack().value_counts()
-    return sentiment_counts
+    # Select only the mentions on the given date
+    mentions_on_date = mentions_df[mentions_df['scraped_date'] == date]
+    
+    positive_count = 0
+    neutral_count = 0
+    negative_count = 0
+    
+    for _, mention in mentions_on_date.iterrows():
+        # Check if extracted_data is not empty
+        if pd.notna(mention['extracted_data']) and len(mention['extracted_data'].strip()) > 0:
+            try:
+                contents = json.loads(mention['extracted_data'])
+                
+                # Check if contents is a list of dictionaries
+                if isinstance(contents, list):
+                    for content in contents:
+                        if isinstance(content, dict):
+                            sentiment = content.get('sentiment', '').lower()
+                            if sentiment == 'positive':
+                                positive_count += 1
+                            elif sentiment == 'neutral':
+                                neutral_count += 1
+                            elif sentiment == 'negative':
+                                negative_count += 1
+            except json.JSONDecodeError:
+                print(f"Error decoding JSON for entry: {mention['extracted_data']}")
+    
+    return {'positive': positive_count, 'neutral': neutral_count, 'negative': negative_count}
+
+        
 
 # create and display a dashboard of multiple plots using matplotlib
 def display_plots(date, mentions_df, posts_df):
@@ -63,11 +82,12 @@ def main():
     conn = sqlite3.connect('final_project/scraped_data/reddit_posts.db')
 
     # load the stock_mentions table into a DataFrame
-    mentions_df = pd.read_sql_query('SELECT extracted_data FROM stock_mentions', conn)
+    mentions_df = pd.read_sql_query('SELECT * FROM stock_mentions', conn)
     # load the posts table into a DataFrame
     posts_df = pd.read_sql_query('SELECT * FROM posts', conn)
 
-    display_plots('2024-07-16', mentions_df, posts_df)
+    # display_plots('2024-07-16', mentions_df, posts_df)
+    print(overall_sentiment('2024-07-16', mentions_df))
     
     # close the connection
     conn.close()

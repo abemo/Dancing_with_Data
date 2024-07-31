@@ -6,7 +6,6 @@ from openai import OpenAI
 import os
 import utils.config as config
 import tqdm
-import re
 
 # Load your OpenAI API key from an environment variable or directly set it here
 client = OpenAI(api_key=config.OPENAI_API_KEY)
@@ -38,19 +37,19 @@ def extract_tickers_and_sentiment(text):
         return match.group()
     else:
         print("No match found")
-
+        return '[]'
 
 def process_post(row):
     combined_text = f"{row['title']} {row['body']}"
     
     # Preprocess to check for stock tickers before making an API call
     if not any(pattern.search(combined_text) for pattern in ticker_patterns.values()):
-        return (row['url'], json.dumps([]))  # Return empty list if no tickers are found
+        return (row['url'], row['scraped_date'], json.dumps([]))  # Return empty list if no tickers are found
     
     # Call the OpenAI API to extract stock tickers and sentiment
     extracted_data = extract_tickers_and_sentiment(combined_text)
     
-    return (row['url'], extracted_data)
+    return (row['url'], row['scraped_date'], extracted_data)
 
 def main():
     # Connect to the SQLite database
@@ -59,24 +58,26 @@ def main():
     # Create the stock_mentions table if it doesn't exist
     conn.execute('''
         CREATE TABLE IF NOT EXISTS stock_mentions (
-            url TEXT PRIMARY KEY,
-            extracted_data TEXT
+            url TEXT,
+            scraped_date TEXT,
+            extracted_data TEXT,
+            PRIMARY KEY (url, scraped_date)
         )
     ''')
     conn.commit()
     
     # Load the posts table into a DataFrame
-    posts_df = pd.read_sql_query('SELECT url, title, body, comments, image FROM posts', conn)
+    posts_df = pd.read_sql_query('SELECT url, title, body, comments, image, scraped_date FROM posts', conn)
     
     # Load the stock_mentions table into a DataFrame
-    analyzed_df = pd.read_sql_query('SELECT url FROM stock_mentions', conn)
-    analyzed_urls = set(analyzed_df['url'])
+    analyzed_df = pd.read_sql_query('SELECT url, scraped_date FROM stock_mentions', conn)
+    analyzed_urls_dates = set((row['url'], row['scraped_date']) for _, row in analyzed_df.iterrows())
     
     # Filter out already analyzed posts
-    unanalyzed_posts_df = posts_df[~posts_df['url'].isin(analyzed_urls)]
+    unanalyzed_posts_df = posts_df[~posts_df[['url', 'scraped_date']].apply(tuple, axis=1).isin(analyzed_urls_dates)]
     
     # Limit to 100 posts per run
-    unanalyzed_posts_df = unanalyzed_posts_df.head(100)
+    unanalyzed_posts_df = unanalyzed_posts_df.head(10)
     
     if unanalyzed_posts_df.empty:
         print("No new posts to analyze.")
@@ -89,7 +90,7 @@ def main():
         results.append(result)
     
     # Create DataFrame from results
-    mentions_df = pd.DataFrame(results, columns=['url', 'extracted_data'])
+    mentions_df = pd.DataFrame(results, columns=['url', 'scraped_date', 'extracted_data'])
     
     # Save the mentions DataFrame to the stock_mentions table in the SQLite database
     mentions_df.to_sql('stock_mentions', conn, if_exists='append', index=False)
