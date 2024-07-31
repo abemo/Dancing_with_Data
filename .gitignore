@@ -4,3 +4,4 @@ config.py
 dancing_with_data
 logs.txt
 cron.sh
+*.DS_Store
