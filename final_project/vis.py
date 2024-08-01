@@ -86,12 +86,17 @@ def overall_sentiment(date, mentions_df, posts_df):
                 print(f"Error decoding JSON for entry: {mention['extracted_data']}")
     return {'positive': positive_count, 'neutral': neutral_count, 'negative': negative_count}
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 def display_plots(date, mentions_df, posts_df):
     stock_sentiments = mentions_and_sentiment(date, mentions_df, posts_df)
     sub_sentiments = subreddit_sentiment(date, mentions_df, posts_df)
     total_sentiment = overall_sentiment(date, mentions_df, posts_df)
     
-    fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+    # Figure for stock sentiments
+    fig1, ax1 = plt.subplots(figsize=(12, 6))
+    fig1.canvas.manager.set_window_title(f'Stock Sentiments for {date}')
     
     # Prepare data for stock sentiments plot
     tickers = list(stock_sentiments.keys())
@@ -100,36 +105,80 @@ def display_plots(date, mentions_df, posts_df):
     neutral = [stock_sentiments[ticker]['sentiment']['neutral'] for ticker in tickers]
     negative = [stock_sentiments[ticker]['sentiment']['negative'] for ticker in tickers]
     
-    bar_width = 0.35
-    index = np.arange(len(tickers))
+    bar_width = 0.5
+    
+    # Only show the top 20 tickers
+    top_20 = sorted(zip(tickers, counts, positive, neutral, negative), key=lambda x: x[1], reverse=True)[:20]
+    tickers, counts, positive, neutral, negative = zip(*top_20)
+    index = np.arange(len(tickers))  # Update index to match the length of the top 20 tickers
     
     # Bar plot for stock sentiments
-    p1 = axs[0].bar(index, positive, bar_width, label='Positive')
-    p2 = axs[0].bar(index, neutral, bar_width, bottom=positive, label='Neutral')
-    p3 = axs[0].bar(index, negative, bar_width, bottom=np.array(positive) + np.array(neutral), label='Negative')
+    ax1.bar(index, positive, bar_width, label='Positive', color='g')
+    ax1.bar(index, neutral, bar_width, label='Neutral', color='y', bottom=positive)
+    ax1.bar(index, negative, bar_width, label='Negative', color='r', bottom=np.array(positive) + np.array(neutral))
     
-    axs[0].set_title('Number of Posts per Stock Ticker Mentioned')
-    axs[0].set_xlabel('Stock Ticker')
-    axs[0].set_ylabel('Number of Posts')
-    axs[0].set_xticks(index)
-    axs[0].set_xticklabels(tickers)
-    axs[0].legend()
+    # Annotate the bars with the total mentions count
+    for i in range(len(index)):
+        total = positive[i] + neutral[i] + negative[i]
+        ax1.annotate(f'{total}', (index[i], positive[i] + neutral[i] + negative[i]), ha='center', va='bottom')
+    
+    ax1.set_xlabel('Stock Ticker')
+    ax1.set_ylabel('Count')
+    ax1.set_title('Sentiment of Top 20 Stock Tickers')
+    ax1.set_xticks(index)
+    ax1.set_xticklabels(tickers, rotation=90)
+    ax1.legend()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Figure for subreddit sentiments
+    fig2, ax2 = plt.subplots(figsize=(8, 8))
+    fig2.canvas.manager.set_window_title(f'Subreddit Sentiments for {date}')
     
     # Pie chart for subreddit sentiments
     sub_sentiments_counts = {k: sum(v.values()) for k, v in sub_sentiments.items()}
     sub_sentiments_labels = list(sub_sentiments_counts.keys())
     sub_sentiments_sizes = list(sub_sentiments_counts.values())
-    axs[1].pie(sub_sentiments_sizes, labels=sub_sentiments_labels, autopct='%1.1f%%')
-    axs[1].set_title('Overall Sentiment of Each Subreddit')
+    
+    # Define the color map from red to green
+    cmap = plt.cm.RdYlGn
+    
+    # Normalize the sizes to range from 0 to 1
+    norm = plt.Normalize(min(sub_sentiments_sizes), max(sub_sentiments_sizes))
+    
+    # Generate the colors for each segment based on the normalized sizes
+    colors = cmap(norm(sub_sentiments_sizes))
+    
+    ax2.pie(sub_sentiments_sizes, labels=sub_sentiments_labels, startangle=90, colors=colors)
+    ax2.set_title('Overall Sentiment of Each Subreddit')
+    
+    # Add a legend explaining the color scheme
+    legend_labels = ['Negative', 'Neutral', 'Positive']
+    legend_colors = ['red', 'orange', 'green']
+    legend_handles = [plt.Rectangle((0, 0), 1, 1, color=color) for color in legend_colors]
+    ax2.legend(legend_handles, legend_labels, loc='upper right')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Figure for overall sentiment
+    fig3, ax3 = plt.subplots(figsize=(8, 8))
+    fig3.canvas.manager.set_window_title(f'Overall Sentiment for {date}')
     
     # Pie chart for overall sentiment
+    # make the negative sentiment red, neutral sentiment yellow, and positive sentiment green
     total_counts = list(total_sentiment.values())
     total_labels = ['Positive', 'Neutral', 'Negative']
-    axs[2].pie(total_counts, labels=total_labels, autopct='%1.1f%%')
-    axs[2].set_title('Overall Sentiment of All Posts')
+    colors = ['green', 'orange', 'red']
+    ax3.pie(total_counts, labels=total_labels, autopct='%1.1f%%', colors=colors)
+    ax3.set_title('Overall Sentiment of All Posts')
     
     plt.tight_layout()
     plt.show(block=True)
+
+
+
 
 def main():
     conn = sqlite3.connect('final_project/scraped_data/reddit_posts.db')
